@@ -1,33 +1,43 @@
 defmodule IRex.Receiver do
   use GenServer
 
-  require Logger
+  @type receiver_config :: [
+          gpio: integer(),
+          frame_timeout: integer()
+        ]
 
-  @frame_timeout 15000
+  @default_frame_timeout 15000
   @watcher_interval 1
 
   defmodule State do
-    defstruct gpio: nil, client: nil, buffer: []
+    defstruct gpio: nil,
+              client: nil,
+              buffer: [],
+              frame_timeout: nil
   end
 
-  def start_link(gpio_pin) do
+  @spec start_link(config :: receiver_config()) :: {:ok, pid()} | {:eror, term()}
+  def start_link(config) do
     client = self()
+    gpio_pin = Keyword.fetch!(config, :gpio)
+    frame_timeout = Keyword.get(config, :frame_timeout, @default_frame_timeout)
 
-    GenServer.start_link(__MODULE__, [gpio_pin, client])
+    GenServer.start_link(__MODULE__, [gpio_pin, client, frame_timeout])
   end
 
+  @spec stop(pid) :: :ok
   def stop(pid),
     do: GenServer.stop(pid)
 
   @impl true
-  def init([gpio_pin, client]) do
+  def init([gpio_pin, client, frame_timeout]) do
     Process.flag(:trap_exit, true)
     Process.monitor(client)
 
-    {:ok, gpio} = IRex.Nif.start_receiver(gpio_pin, self())
+    {:ok, gpio} = IRex.Nif.start_receiver(gpio_pin, 1, self())
 
     Process.send_after(self(), :watcher, @watcher_interval)
-    {:ok, %State{gpio: gpio, client: client, buffer: []}}
+    {:ok, %State{gpio: gpio, client: client, frame_timeout: frame_timeout, buffer: []}}
   end
 
   @impl true
@@ -59,8 +69,8 @@ defmodule IRex.Receiver do
   def handle_watcher(%{buffer: [{_, 1} | _]} = state),
     do: {:noreply, state}
 
-  def handle_watcher(%{buffer: [{last_time, 0} | _]} = state) do
-    if System.system_time(:microsecond) - last_time > @frame_timeout do
+  def handle_watcher(%{buffer: [{last_time, 0} | _], frame_timeout: timeout} = state) do
+    if System.system_time(:microsecond) - last_time > timeout do
       case timing_decode(state.buffer) do
         {:ok, data} ->
           send(state.client, {:irex_receive, data})
@@ -75,8 +85,9 @@ defmodule IRex.Receiver do
     end
   end
 
-  defp finalize(state),
-    do: :ok == IRex.Nif.stop_receiver(state.gpio)
+  defp finalize(state) do
+    :ok == IRex.Nif.stop_receiver(state.gpio)
+  end
 
   # This function decodes in reverse! Dont kill me please xD
   defp timing_decode(buffer) do

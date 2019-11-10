@@ -49,7 +49,12 @@ static int chardev_open(struct receiver_info *info) {
         return -1;
 
     req.lineoffset = info->gpio_pin;
-    req.handleflags = GPIOHANDLE_REQUEST_INPUT | GPIOHANDLE_REQUEST_ACTIVE_LOW;
+    req.handleflags = GPIOHANDLE_REQUEST_INPUT;
+
+    if (info->active_low) {
+        req.handleflags |= GPIOHANDLE_REQUEST_ACTIVE_LOW;
+    }
+
     req.eventflags = GPIOEVENT_REQUEST_BOTH_EDGES;
     strcpy(req.consumer_label, "irex-receiver");
 

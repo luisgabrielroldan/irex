@@ -8,7 +8,7 @@ Simple library to read a IR sensor.
 
 ```elixir
 # Start the receiver on GPIO 18
-iex(1)> {:ok, pid} = IRex.Receiver.start_link 18
+iex(1)> {:ok, pid} = IRex.Receiver.start_link(gpio: 18)
 {:ok, #PID<0.169.0>}
 
 # Receive signals

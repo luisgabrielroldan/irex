@@ -23,13 +23,11 @@ struct receiver_info {
   int fd;
   int req_fd;
   int gpio_pin;
+  int active_low;
   int poller_pipe[2];
   ErlNifTid poller_tid;
   ErlNifPid pid;
 };
-
-ERL_NIF_TERM make_ok_tuple(ErlNifEnv *env, ERL_NIF_TERM value);
-ERL_NIF_TERM make_error_tuple(ErlNifEnv *env, const char *reason);
 
 #endif // _IREX_NIF_H_
 

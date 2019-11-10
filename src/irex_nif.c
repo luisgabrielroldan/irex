@@ -1,6 +1,21 @@
 #include "irex_nif.h"
 #include "receiver.h"
 
+ERL_NIF_TERM make_ok_tuple(ErlNifEnv *env, ERL_NIF_TERM value)
+{
+    struct irex_priv *priv = enif_priv_data(env);
+
+    return enif_make_tuple2(env, priv->atom_ok, value);
+}
+
+ERL_NIF_TERM make_error_tuple(ErlNifEnv *env, const char *reason)
+{
+    struct irex_priv *priv = enif_priv_data(env);
+    ERL_NIF_TERM reason_atom = enif_make_atom(env, reason);
+
+    return enif_make_tuple2(env, priv->atom_error, reason_atom);
+}
+
 static void receiver_info_dtor(ErlNifEnv *env, void *obj)
 {
     struct receiver_info *info = (struct receiver_info*) obj;
@@ -51,12 +66,14 @@ static void unload(ErlNifEnv *env, void *priv_data)
 
 static ERL_NIF_TERM start_receiver(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     int pin_number;
+    int active_low;
     ErlNifPid pid;
     struct irex_priv *priv = enif_priv_data(env);
 
-    if (argc != 2 ||
+    if (argc != 3 ||
             !enif_get_int(env, argv[0], &pin_number) ||
-            !enif_get_local_pid(env, argv[1], &pid)) {
+            !enif_get_int(env, argv[1], &active_low) ||
+            !enif_get_local_pid(env, argv[2], &pid)) {
         return enif_make_badarg(env);
     }
 
@@ -64,6 +81,7 @@ static ERL_NIF_TERM start_receiver(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
 
     info->fd = -1;
     info->gpio_pin = pin_number;
+    info->active_low = active_low;
     info->pid = pid;
 
     if (receiver_init(info) < 0) {
@@ -90,24 +108,8 @@ static ERL_NIF_TERM stop_receiver(ErlNifEnv *env, int argc, const ERL_NIF_TERM a
 
 }
 
-ERL_NIF_TERM make_ok_tuple(ErlNifEnv *env, ERL_NIF_TERM value)
-{
-    struct irex_priv *priv = enif_priv_data(env);
-
-    return enif_make_tuple2(env, priv->atom_ok, value);
-}
-
-ERL_NIF_TERM make_error_tuple(ErlNifEnv *env, const char *reason)
-{
-    struct irex_priv *priv = enif_priv_data(env);
-    ERL_NIF_TERM reason_atom = enif_make_atom(env, reason);
-
-    return enif_make_tuple2(env, priv->atom_error, reason_atom);
-}
-
-
 static ErlNifFunc nif_funcs[] = {
-    {"start_receiver", 2, start_receiver, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"start_receiver", 3, start_receiver, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"stop_receiver", 1, stop_receiver, 0}
 };
 

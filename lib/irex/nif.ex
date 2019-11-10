@@ -10,7 +10,7 @@ defmodule IRex.Nif do
     :erlang.load_nif(to_charlist(nif_binary), 0)
   end
 
-  def start_receiver(_pin_number, _process) do
+  def start_receiver(_pin_number, _active_low, _process) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
