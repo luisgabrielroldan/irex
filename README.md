@@ -1,6 +1,6 @@
 # IRex
 
-Simple library to read a IR sensor.
+Simple library to read an IR sensor.
 
 *This is a work in progress!*
 
