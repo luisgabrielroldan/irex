@@ -36,7 +36,7 @@ static void chardev_close(struct receiver_info *info) {
     }
 }
 
-static int chardev_open(struct receiver_info *info) {
+static int chardev_open(const char* gpio_dev, int gpio_line, struct receiver_info *info) {
     int fd;
     int ret;
     struct gpioevent_request req;
@@ -44,11 +44,11 @@ static int chardev_open(struct receiver_info *info) {
     info->fd = -1;
     info->req_fd = -1;
 
-    fd = open("/dev/gpiochip0", O_RDONLY);
+    fd = open(gpio_dev, O_RDONLY);
     if (fd < 0)
         return -1;
 
-    req.lineoffset = info->gpio_pin;
+    req.lineoffset = gpio_line;
     req.handleflags = GPIOHANDLE_REQUEST_INPUT;
 
     if (info->active_low) {
@@ -67,12 +67,15 @@ static int chardev_open(struct receiver_info *info) {
 
     info->fd = fd;
     info->req_fd = req.fd;
+    info->closed = 0;
 
     return 0;
 
 exit_close_error:
     if (close(fd) == -1)
         error("Failed to close GPIO character device file");
+
+    info->closed = 1;
     return -1;
 }
 
@@ -161,6 +164,8 @@ void *events_poller_thread(void *pinfo) {
 }
 
 void receiver_close(struct receiver_info* info) {
+    if (info->closed) return;
+
     close(info->poller_pipe[0]);
     close(info->poller_pipe[1]);
 
@@ -169,14 +174,13 @@ void receiver_close(struct receiver_info* info) {
     chardev_close(info);
 }
 
-int receiver_init(struct receiver_info* info) {
-
+int receiver_init(const char* gpio_dev, int gpio_line, struct receiver_info* info) {
     if (pipe(info->poller_pipe) < 0) {
         error("Poller thread pipe failed");
         return -1;
     }
 
-    if (chardev_open(info) != 0) {
+    if (chardev_open(gpio_dev, gpio_line, info) != 0) {
         error("Open GPIO failed");
         return -1;
     }

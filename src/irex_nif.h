@@ -3,7 +3,7 @@
 
 #include "erl_nif.h"
 
-//#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define debug(...) do { enif_fprintf(stderr, __VA_ARGS__); enif_fprintf(stderr, "\r\n"); fflush(stderr); } while(0)
@@ -22,9 +22,10 @@ struct irex_priv {
 struct receiver_info {
   int fd;
   int req_fd;
-  int gpio_pin;
+  int gpio_line;
   int active_low;
   int poller_pipe[2];
+  int closed;
   ErlNifTid poller_tid;
   ErlNifPid pid;
 };

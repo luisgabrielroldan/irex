@@ -62,29 +62,37 @@ static void unload(ErlNifEnv *env, void *priv_data)
     (void) env;
 
     debug("unload");
+    enif_free(priv_data);
 }
 
 static ERL_NIF_TERM start_receiver(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
-    int pin_number;
+    int gpio_line;
+    char gpio_dev[32];
     int active_low;
     ErlNifPid pid;
+
     struct irex_priv *priv = enif_priv_data(env);
 
-    if (argc != 3 ||
-            !enif_get_int(env, argv[0], &pin_number) ||
-            !enif_get_int(env, argv[1], &active_low) ||
-            !enif_get_local_pid(env, argv[2], &pid)) {
+    if (argc != 4 ||
+            !enif_get_string(env, argv[0], gpio_dev, sizeof(gpio_dev), ERL_NIF_LATIN1) ||
+            !enif_get_int(env, argv[1], &gpio_line) ||
+            !enif_get_int(env, argv[2], &active_low) ||
+            !enif_get_local_pid(env, argv[3], &pid)) {
         return enif_make_badarg(env);
     }
 
+
+    debug(gpio_dev);
+
     struct receiver_info *info = enif_alloc_resource(priv->receiver_info_rt, sizeof(struct receiver_info));
 
+    info->closed = 1;
     info->fd = -1;
-    info->gpio_pin = pin_number;
+    info->gpio_line = gpio_line;
     info->active_low = active_low;
     info->pid = pid;
 
-    if (receiver_init(info) < 0) {
+    if (receiver_init(gpio_dev, gpio_line, info) < 0) {
         return make_error_tuple(env, "start_failed");
     }
 
@@ -109,7 +117,7 @@ static ERL_NIF_TERM stop_receiver(ErlNifEnv *env, int argc, const ERL_NIF_TERM a
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"start_receiver", 3, start_receiver, ERL_NIF_DIRTY_JOB_IO_BOUND},
+    {"start_receiver", 4, start_receiver, ERL_NIF_DIRTY_JOB_IO_BOUND},
     {"stop_receiver", 1, stop_receiver, 0}
 };
 

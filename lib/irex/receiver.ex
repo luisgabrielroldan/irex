@@ -1,16 +1,18 @@
 defmodule IRex.Receiver do
   use GenServer
 
+  @type gpio :: {gpio_dev :: String.t(), gpio_line :: integer()}
+
   @type receiver_config :: [
           gpio: integer(),
-          frame_timeout: integer()
+          frame_timeout: gpio() | integer()
         ]
 
   @default_frame_timeout 15000
   @watcher_interval 1
 
   defmodule State do
-    defstruct gpio: nil,
+    defstruct recv: nil,
               client: nil,
               buffer: [],
               frame_timeout: nil
@@ -19,10 +21,11 @@ defmodule IRex.Receiver do
   @spec start_link(config :: receiver_config()) :: {:ok, pid()} | {:eror, term()}
   def start_link(config) do
     client = self()
-    gpio_pin = Keyword.fetch!(config, :gpio)
+    gpio = Keyword.fetch!(config, :gpio) |> get_gpio_dev()
+
     frame_timeout = Keyword.get(config, :frame_timeout, @default_frame_timeout)
 
-    GenServer.start_link(__MODULE__, [gpio_pin, client, frame_timeout])
+    GenServer.start_link(__MODULE__, {gpio, client, frame_timeout})
   end
 
   @spec stop(pid) :: :ok
@@ -30,14 +33,20 @@ defmodule IRex.Receiver do
     do: GenServer.stop(pid)
 
   @impl true
-  def init([gpio_pin, client, frame_timeout]) do
+  def init({gpio, client, frame_timeout}) do
     Process.flag(:trap_exit, true)
     Process.monitor(client)
 
-    {:ok, gpio} = IRex.Nif.start_receiver(gpio_pin, 1, self())
+    {gpio_dev, gpio_line} = gpio
 
-    Process.send_after(self(), :watcher, @watcher_interval)
-    {:ok, %State{gpio: gpio, client: client, frame_timeout: frame_timeout, buffer: []}}
+    case IRex.Nif.start_receiver(to_charlist(gpio_dev), gpio_line, 1, self()) do
+      {:ok, recv} ->
+        Process.send_after(self(), :watcher, @watcher_interval)
+        {:ok, %State{recv: recv, client: client, frame_timeout: frame_timeout, buffer: []}}
+
+      error ->
+        {:stop, error}
+    end
   end
 
   @impl true
@@ -86,7 +95,7 @@ defmodule IRex.Receiver do
   end
 
   defp finalize(state) do
-    :ok == IRex.Nif.stop_receiver(state.gpio)
+    :ok == IRex.Nif.stop_receiver(state.recv)
   end
 
   # This function decodes in reverse! Dont kill me please xD
@@ -115,4 +124,11 @@ defmodule IRex.Receiver do
         error
     end
   end
+
+  defp get_gpio_dev(gpio_pin) when is_integer(gpio_pin),
+    do: {"/dev/gpiochip0", gpio_pin}
+
+  defp get_gpio_dev({gpio_dev, gpio_line} = gpio)
+       when is_integer(gpio_line) and is_binary(gpio_dev),
+       do: gpio
 end
