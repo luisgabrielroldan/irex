@@ -55,6 +55,10 @@ defmodule IRex.Receiver do
   end
 
   @impl true
+  def handle_info({:recv_event, _, 0}, %{buffer: []} = state) do
+    {:noreply, state}
+  end
+
   def handle_info({:recv_event, time, val}, state) do
     {:noreply, %{state | buffer: [{time / 1000, val} | state.buffer]}}
   end
