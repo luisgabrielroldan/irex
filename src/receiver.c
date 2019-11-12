@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <linux/gpio.h>
+#include "gpio.h"
 
 #define READ_EVENT_CONT 1
 #define READ_EVENT_ERROR -1
